@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="메이플스토리 미니게임 「한글 모아모아」 배치 추천기">
+<style>body { margin: 0; } img { max-width: 100%; }</style>
+<title>모아모아 배치 추천기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  /* 레이아웃: 왼쪽은 게임판(편집·단계별 미리보기), 오른쪽은 보유 조각과 추천 결과. 좁은 화면에서는 위아래로 쌓는다. */
+  :root {
+    --bg: #eaf2f8;
+    --surface: #ffffff;
+    --ink: #1c2733;
+    --muted: #5a6978;
+    --line: #d3dfe9;
+    --accent: #1683d6;
+    --accent-ink: #ffffff;
+    --cell-empty: #dde8f1;
+    --cell-filled: #6b7b8c;
+    --clear-ring: #e8453c;
+    --warn-bg: #fff3dc;
+    --warn-ink: #7a4d00;
+    --pink: #e95db0;
+    --green: #74bd1c;
+    --yellow: #eab000;
+    --blue: #34a0ee;
+    --ability: #8a4dea;
+    --font-display: "Jua", "IBM Plex Sans KR", system-ui, sans-serif;
+    --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111821; --surface: #19222e; --ink: #e4ecf3; --muted: #93a3b3; --line: #2a3747;
+      --accent: #4aa8f0; --accent-ink: #08131d; --cell-empty: #222d3a; --cell-filled: #8a99a9;
+      --clear-ring: #ff6b61; --warn-bg: #3a2c12; --warn-ink: #ffd48a;
+      --pink: #f27cc2; --green: #8fd63a; --yellow: #f5c331; --blue: #5bb4f3; --ability: #b28cff;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111821; --surface: #19222e; --ink: #e4ecf3; --muted: #93a3b3; --line: #2a3747;
+    --accent: #4aa8f0; --accent-ink: #08131d; --cell-empty: #222d3a; --cell-filled: #8a99a9;
+    --clear-ring: #ff6b61; --warn-bg: #3a2c12; --warn-ink: #ffd48a;
+    --pink: #f27cc2; --green: #8fd63a; --yellow: #f5c331; --blue: #5bb4f3; --ability: #b28cff;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 20px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+  h1 { font-family: var(--font-display); font-weight: 400; font-size: 30px; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 760px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+  h2 { font-family: var(--font-display); font-weight: 400; font-size: 19px; margin: 0; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--cell-empty); color: var(--muted); }
+
+  /* 게임판 */
+  .board-wrap { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 4px; }
+  .col-labels, .board { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; }
+  .row-labels { display: grid; grid-template-rows: repeat(16, minmax(0, 1fr)); gap: 3px; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; color: var(--muted); display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+  .board { touch-action: none; user-select: none; }
+  .cell { aspect-ratio: 1; border: 0; padding: 0; border-radius: 4px; background: var(--cell-empty); font: 700 11px/1 var(--font-mono); color: #fff; display: grid; place-items: center; cursor: pointer; }
+  .cell.filled { background: var(--cell-filled); }
+  .cell.p-pink { background: var(--pink); } .cell.p-green { background: var(--green); }
+  .cell.p-yellow { background: var(--yellow); } .cell.p-blue { background: var(--blue); }
+  .cell.clearing { box-shadow: inset 0 0 0 2px var(--clear-ring); }
+  .cell { position: relative; }
+  .cell.icon::after { content: ""; position: absolute; inset: 22%; border-radius: 50%; background: var(--ability); box-shadow: 0 0 0 2px var(--surface); }
+  .cell.icon.has-num::after { inset: auto 2px 2px auto; width: 38%; height: 38%; }
+  .cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .board.viewing .cell { cursor: default; }
+
+  .steps-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 12px; font: 500 13px var(--font-body); cursor: pointer; }
+  .tab[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; background: var(--surface); color: var(--muted); padding: 7px 12px; font: 500 13px var(--font-body); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  .seg button:focus-visible, .stepper button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ability); display: inline-block; }
+  .sq { width: 10px; height: 10px; border-radius: 2px; background: var(--cell-filled); display: inline-block; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; }
+  .stepper { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .stepper button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: 700 15px var(--font-body); cursor: pointer; }
+  .stepper output { min-width: 3ch; text-align: center; color: var(--ink); font: 500 14px var(--font-mono); font-variant-numeric: tabular-nums; }
+  .field-label { font-size: 13px; color: var(--muted); }
+  .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 9px 14px; font: 500 14px var(--font-body); cursor: pointer; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:focus-visible, .tab:focus-visible, .piece-btn:focus-visible, .slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* 보유 조각 슬롯 */
+  .slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .slot { border: 1.5px dashed var(--line); background: transparent; color: var(--muted); border-radius: 12px; min-height: 92px; display: grid; place-items: center; gap: 4px; padding: 8px; cursor: pointer; font: 13px var(--font-body); }
+  .slot.has { border-style: solid; color: var(--ink); background: var(--bg); }
+  .slot .nm { font-family: var(--font-display); font-size: 18px; }
+
+  /* 조각 고르기 */
+  .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+  .piece-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 8px 4px 6px; display: grid; justify-items: center; gap: 4px; cursor: pointer; font: 12px var(--font-body); }
+  .piece-btn:hover { border-color: var(--muted); }
+  .piece-btn .nm { font-family: var(--font-display); font-size: 16px; line-height: 1; }
+  .piece-btn .sz { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .mini { display: grid; gap: 1.5px; }
+  .mini i { width: 7px; height: 7px; border-radius: 1.5px; }
+  .mini i.on.p-pink { background: var(--pink); } .mini i.on.p-green { background: var(--green); }
+  .mini i.on.p-yellow { background: var(--yellow); } .mini i.on.p-blue { background: var(--blue); }
+  .mini.big i { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* 추천 결과 */
+  .summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+  .summary .pts { font-family: var(--font-display); font-size: 26px; font-variant-numeric: tabular-nums; }
+  .summary .sub { color: var(--muted); }
+  .warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .step-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .step { display: grid; grid-template-columns: 28px 56px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; background: var(--surface); }
+  .step.active { border-color: var(--ink); }
+  .badge { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 13px var(--font-mono); color: #fff; }
+  .badge.p-pink { background: var(--pink); } .badge.p-green { background: var(--green); }
+  .badge.p-yellow { background: var(--yellow); } .badge.p-blue { background: var(--blue); }
+  .step .mini { justify-self: center; }
+  .step-title { font-weight: 700; }
+  .step-meta { color: var(--muted); font-size: 13px; }
+  .step-meta b { color: var(--ink); font-weight: 500; }
+  .gain { font-variant-numeric: tabular-nums; }
+  .gain.clear { color: var(--clear-ring); font-weight: 700; }
+  .alt-nav { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .empty-result { color: var(--muted); font-size: 14px; margin: 0; }
+  .toast { color: var(--accent); font-size: 13px; min-height: 1.5em; margin: 0; }
+  @media (prefers-reduced-motion: no-preference) { .cell { transition: background-color .12s; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>모아모아 배치 추천기</h1>
+    <p>메이플스토리 미니게임 「한글 모아모아」 · 판 10×16 · 조각 3개 배치 순서와 위치를 추천</p>
+  </header>
+
+  <div class="layout">
+    <section class="panel" aria-labelledby="board-h">
+      <div class="panel-head">
+        <h2 id="board-h">게임판</h2>
+        <span class="chip" id="board-chip">예시 판</span>
+      </div>
+      <p class="hint" id="board-hint">칸을 누르거나 끌어서 지금 게임판과 똑같이 채우세요.</p>
+      <div class="tools">
+        <div class="seg" role="group" aria-label="편집 대상">
+          <button type="button" id="edit-block" aria-pressed="true"><span class="sq"></span>블록</button>
+          <button type="button" id="edit-icon" aria-pressed="false"><span class="dot"></span>능력 아이콘</button>
+        </div>
+        <div class="stepper" aria-label="보유 능력 개수">
+          <span>보유 능력</span>
+          <button type="button" id="abil-minus" aria-label="보유 능력 하나 줄이기">−</button>
+          <output id="abil-out">0/7</output>
+          <button type="button" id="abil-plus" aria-label="보유 능력 하나 늘리기">+</button>
+        </div>
+      </div>
+      <div class="steps-tabs" id="tabs" hidden></div>
+      <div class="board-wrap">
+        <div></div>
+        <div class="col-labels" id="col-labels"></div>
+        <div class="row-labels" id="row-labels"></div>
+        <div class="board" id="board" role="grid" aria-label="게임판 10열 16행"></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btn-clear" type="button">판 비우기</button>
+        <button class="btn" id="btn-undo" type="button" disabled>되돌리기</button>
+      </div>
+    </section>
+
+    <div style="display:grid; gap:20px; min-width:0">
+      <section class="panel" aria-labelledby="hand-h">
+        <div class="panel-head">
+          <h2 id="hand-h">보유 조각</h2>
+          <span class="hint">슬롯을 누르면 비워져요</span>
+        </div>
+        <div class="slots" id="slots"></div>
+        <div class="palette" id="palette" aria-label="조각 고르기"></div>
+        <div class="actions">
+          <button class="btn primary" id="btn-solve" type="button">추천 받기</button>
+          <div class="seg" role="group" aria-label="추천 방식">
+            <button type="button" id="mode-score" aria-pressed="true">고득점</button>
+            <button type="button" id="mode-safe" aria-pressed="false">빠른 계산</button>
+          </div>
+        </div>
+        <p class="hint" id="mode-hint"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="result-h" aria-live="polite">
+        <div class="panel-head">
+          <h2 id="result-h">추천 배치</h2>
+          <div class="alt-nav" id="alt-nav" hidden>
+            <button class="btn" id="btn-prev" type="button" aria-label="이전 추천">‹</button>
+            <span id="alt-label">1 / 5</span>
+            <button class="btn" id="btn-next" type="button" aria-label="다음 추천">›</button>
+          </div>
+        </div>
+        <div id="result"><p class="empty-result">조각을 1~3개 고르고 「추천 받기」를 누르세요.</p></div>
+        <div class="actions">
+          <button class="btn primary" id="btn-apply" type="button" hidden>추천대로 놓았어요 · 판에 적용</button>
+        </div>
+        <p class="toast" id="toast"></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- 추천 엔진 (같은 폴더의 solver.js) -->
+<script src="solver.js"></script>
+<script>
+(function () {
+  'use strict';
+  var S = window.MoaSolver, W = S.W, H = S.H, MAX_ICONS = 3;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // 예시 판: 아래쪽이 조금 쌓인 평범한 중반 상황, 14행 5열에 능력 아이콘
+  var EXAMPLE = {
+    rows: [
+      '..........', '..........', '..........', '..........', '..........', '..........',
+      '..........', '..........', '..........', '........#.', '##.....###', '###...####',
+      '####.#####', '####..####', '#####.####', '#####.####'
+    ],
+    icons: [[13, 4]],
+    abilities: 2,
+    slots: ['ㅣ', 'ㄴ', 'ㅈ']
+  };
+
+  var MODE_HINT = {
+    score: '다음 턴에 나올 조각까지 가정해 보고 고르기 때문에 1~3초 걸려요.',
+    safe: '이번 조각 3개만 보고 바로 골라요. 0.5초 이내.'
+  };
+
+  function rowsToBoard(rows) {
+    return rows.map(function (r) { var v = 0; for (var c = 0; c < W; c++) if (r[c] === '#') v |= 1 << c; return v; });
+  }
+
+  var state = {
+    board: rowsToBoard(EXAMPLE.rows),
+    icons: EXAMPLE.icons.map(function (p) { return p.slice(); }),
+    abilities: EXAMPLE.abilities,
+    slots: EXAMPLE.slots.slice(),
+    mode: 'score',
+    editTarget: 'block',
+    isExample: true,
+    undo: [],
+    result: null, planIdx: 0, view: 0
+  };
+
+  function load() {
+    try {
+      var saved = JSON.parse(localStorage.getItem('moamoa-recommender') || 'null');
+      if (saved && Array.isArray(saved.board) && saved.board.length === H) {
+        state.board = saved.board;
+        state.slots = saved.slots || [null, null, null];
+        state.icons = Array.isArray(saved.icons) ? saved.icons : [];
+        state.abilities = +saved.abilities || 0;
+        if (saved.mode === 'safe' || saved.mode === 'score') state.mode = saved.mode;
+        state.isExample = false;
+      }
+    } catch (e) {}
+  }
+  function save() {
+    if (state.isExample) return;
+    try {
+      localStorage.setItem('moamoa-recommender', JSON.stringify({
+        board: state.board, slots: state.slots, icons: state.icons, abilities: state.abilities, mode: state.mode
+      }));
+    } catch (e) {}
+  }
+
+  function touched() { state.isExample = false; }
+
+  function snapshot() { return { board: state.board.slice(), icons: state.icons.map(function (p) { return p.slice(); }), abilities: state.abilities }; }
+  function pushUndo() {
+    state.undo.push(snapshot());
+    if (state.undo.length > 30) state.undo.shift();
+  }
+
+  function clearResult() { state.result = null; state.planIdx = 0; state.view = 0; }
+
+  function iconIndex(icons, r, c) {
+    for (var i = 0; i < icons.length; i++) if (icons[i][0] === r && icons[i][1] === c) return i;
+    return -1;
+  }
+
+  // ---------- 조각 미니 그림 ----------
+  function mini(cells, color, big) {
+    var h = 0, w = 0;
+    cells.forEach(function (p) { h = Math.max(h, p[0] + 1); w = Math.max(w, p[1] + 1); });
+    var el = document.createElement('div');
+    el.className = 'mini' + (big ? ' big' : '');
+    el.style.gridTemplateColumns = 'repeat(' + w + ', auto)';
+    var on = {};
+    cells.forEach(function (p) { on[p[0] + ',' + p[1]] = true; });
+    for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
+      var i = document.createElement('i');
+      if (on[r + ',' + c]) i.className = 'on p-' + color;
+      el.appendChild(i);
+    }
+    return el;
+  }
+
+  // ---------- 게임판 ----------
+  var cellEls = [];
+  function buildBoard() {
+    var cl = $('col-labels'), rl = $('row-labels'), b = $('board');
+    for (var c = 0; c < W; c++) { var d = document.createElement('div'); d.className = 'lbl'; d.textContent = c + 1; cl.appendChild(d); }
+    for (var r = 0; r < H; r++) {
+      var d2 = document.createElement('div'); d2.className = 'lbl'; d2.textContent = r + 1; rl.appendChild(d2);
+      cellEls.push([]);
+      for (var c2 = 0; c2 < W; c2++) {
+        var el = document.createElement('button');
+        el.type = 'button'; el.className = 'cell'; el.dataset.r = r; el.dataset.c = c2;
+        b.appendChild(el); cellEls[r].push(el);
+      }
+    }
+
+    var painting = null;
+    function cellAt(e) {
+      var t = document.elementFromPoint(e.clientX, e.clientY);
+      return t && t.closest ? t.closest('.cell') : null;
+    }
+    function paint(el) {
+      var r = +el.dataset.r, c = +el.dataset.c, bit = 1 << c;
+      var on = (state.board[r] & bit) !== 0;
+      if (on === painting) return;
+      state.board[r] = painting ? state.board[r] | bit : state.board[r] & ~bit;
+      renderBoard();
+    }
+    function startEdit() {
+      if (state.result) { clearResult(); renderResult(); }
+      pushUndo(); touched();
+    }
+    // 능력 아이콘은 블록이 있든 없든 찍을 수 있다 (블록 아래 깔린 아이콘도 그 줄을 지우면 획득)
+    function toggleIcon(el) {
+      var r = +el.dataset.r, c = +el.dataset.c, i = iconIndex(state.icons, r, c);
+      if (i === -1 && state.icons.length >= MAX_ICONS) { toast('판 위의 능력 아이콘은 최대 3개예요. 없어진 아이콘을 먼저 눌러 지우세요.'); return; }
+      startEdit();
+      if (i === -1) state.icons.push([r, c]); else state.icons.splice(i, 1);
+      save(); renderBoard(); renderControls();
+    }
+    b.addEventListener('pointerdown', function (e) {
+      var el = e.target.closest('.cell'); if (!el) return;
+      e.preventDefault();
+      if (state.editTarget === 'icon') { toggleIcon(el); return; }
+      startEdit();
+      var r = +el.dataset.r, c = +el.dataset.c;
+      painting = !(state.board[r] & (1 << c));
+      paint(el);
+      b.setPointerCapture(e.pointerId);
+    });
+    b.addEventListener('pointermove', function (e) { if (painting === null) return; var el = cellAt(e); if (el) paint(el); });
+    function end() { if (painting !== null) { painting = null; save(); renderControls(); } }
+    b.addEventListener('pointerup', end);
+    b.addEventListener('pointercancel', end);
+    // 키보드: Enter/Space로 칸 토글
+    b.addEventListener('click', function (e) {
+      if (e.detail !== 0) return;
+      var el = e.target.closest('.cell'); if (!el) return;
+      if (state.editTarget === 'icon') { toggleIcon(el); return; }
+      startEdit();
+      state.board[+el.dataset.r] ^= 1 << +el.dataset.c;
+      save(); renderBoard(); renderControls();
+    });
+  }
+
+  function renderBoard() {
+    var plan = state.result && state.result.plans[state.planIdx];
+    var moves = plan ? plan.moves : [];
+    var showing = state.board, icons = state.icons, overlay = null, clearing = {};
+    if (plan) {
+      if (state.view < moves.length) {
+        var m = moves[state.view];
+        showing = m.before;
+        icons = [];
+        m.iconsBefore.forEach(function (mask, r) { for (var c = 0; c < W; c++) if (mask & (1 << c)) icons.push([r, c]); });
+        overlay = { m: m, color: S.BY_NAME[m.piece].color, label: state.view + 1 };
+        m.cleared.forEach(function (r) { clearing[r] = true; });
+      } else {
+        showing = plan.finalBoard;
+        icons = plan.finalIcons;
+      }
+    }
+    var ov = {};
+    if (overlay) overlay.m.orient.cells.forEach(function (p) { ov[(overlay.m.y + p[0]) + ',' + (overlay.m.x + p[1])] = true; });
+    for (var r = 0; r < H; r++) for (var c = 0; c < W; c++) {
+      var el = cellEls[r][c], cls = 'cell', txt = '', label = (r + 1) + '행 ' + (c + 1) + '열';
+      var filled = (showing[r] & (1 << c)) !== 0, hasIcon = iconIndex(icons, r, c) !== -1;
+      if (ov[r + ',' + c]) { cls += ' p-' + overlay.color + ' has-num'; txt = overlay.label; label += ', ' + overlay.label + '번째 조각'; }
+      else if (filled) { cls += ' filled'; label += ', 블록'; }
+      if (hasIcon) { cls += ' icon'; label += ', 능력 아이콘'; }
+      if (clearing[r]) cls += ' clearing';
+      el.className = cls; el.textContent = txt;
+      el.setAttribute('aria-label', label);
+    }
+    $('board').classList.toggle('viewing', !!plan);
+  }
+
+  // ---------- 조각 슬롯·팔레트 ----------
+  function buildPalette() {
+    var pal = $('palette');
+    S.PIECES.forEach(function (p) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'piece-btn';
+      b.setAttribute('aria-label', p.name + ' 조각 ' + p.size + '칸 추가');
+      var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.name;
+      var sz = document.createElement('span'); sz.className = 'sz'; sz.textContent = p.size + '칸';
+      b.appendChild(nm); b.appendChild(mini(p.orients[0].cells, p.color)); b.appendChild(sz);
+      b.addEventListener('click', function () {
+        var i = state.slots.indexOf(null);
+        if (i === -1) { toast('슬롯이 가득 찼어요. 바꿀 슬롯을 먼저 눌러 비우세요.'); return; }
+        state.slots[i] = p.name;
+        touched(); clearResult(); save(); renderAll();
+      });
+      pal.appendChild(b);
+    });
+  }
+
+  function renderSlots() {
+    var box = $('slots'); box.textContent = '';
+    while (state.slots.length < 3) state.slots.push(null);
+    state.slots.forEach(function (name, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'slot' + (name ? ' has' : '');
+      if (name) {
+        var p = S.BY_NAME[name];
+        var nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = name;
+        b.appendChild(mini(p.orients[0].cells, p.color, true)); b.appendChild(nm);
+        b.setAttribute('aria-label', (i + 1) + '번 슬롯 ' + name + ' 비우기');
+        b.addEventListener('click', function () { state.slots[i] = null; touched(); clearResult(); save(); renderAll(); });
+      } else {
+        b.textContent = '빈 슬롯';
+        b.disabled = true;
+      }
+      box.appendChild(b);
+    });
+  }
+
+  // ---------- 추천 ----------
+  function howToTurn(o) {
+    var parts = [];
+    if (o.flip) parts.push('반전 1번');
+    if (o.rot) parts.push('회전 ' + o.rot + '번');
+    return parts.length ? parts.join(' → ') : '그대로';
+  }
+  function range(a, b) { return a === b ? String(a) : a + '–' + b; }
+  function fmt(n) { return n.toLocaleString('ko-KR'); }
+
+  function renderResult() {
+    var box = $('result'); box.textContent = '';
+    var res = state.result;
+    var has = !!(res && res.plans.length);
+    $('alt-nav').hidden = !res || res.plans.length < 2;
+    $('btn-apply').hidden = !has;
+    $('tabs').hidden = !has;
+    $('board-hint').textContent = has
+      ? '번호가 적힌 색 칸이 이번에 놓을 위치예요. 빨간 테두리 줄은 놓는 순간 지워져요. 칸을 누르면 편집으로 돌아가요.'
+      : state.editTarget === 'icon'
+        ? '능력 아이콘이 있는 칸을 누르세요. 다시 누르면 지워져요. 블록이 덮고 있는 칸도 찍을 수 있어요.'
+        : '칸을 누르거나 끌어서 지금 게임판과 똑같이 채우세요.';
+    if (!res) {
+      box.innerHTML = '<p class="empty-result">조각을 1~3개 고르고 「추천 받기」를 누르세요.</p>';
+      renderTabs(); return;
+    }
+    if (!res.plans.length) {
+      box.innerHTML = '<div class="warn">고른 조각을 하나도 놓을 자리가 없어요. 점 찍기나 바꿔 뽑기 능력이 있다면 써 보세요.</div>';
+      renderTabs(); return;
+    }
+    var plan = res.plans[state.planIdx];
+    $('alt-label').textContent = (state.planIdx + 1) + ' / ' + res.plans.length;
+    $('btn-prev').disabled = state.planIdx === 0;
+    $('btn-next').disabled = state.planIdx === res.plans.length - 1;
+
+    if (!res.complete) {
+      var w = document.createElement('div'); w.className = 'warn';
+      w.textContent = '3개를 모두 놓을 자리가 없어요. 아래는 ' + plan.moves.length + '개까지 놓는 방법이에요. 남은 조각은 점 찍기나 바꿔 뽑기 능력으로 해결해 보세요.';
+      box.appendChild(w);
+    }
+
+    var lines = plan.moves.reduce(function (a, m) { return a + m.cleared.length; }, 0);
+    var subs = [lines ? '가로줄 ' + lines + '개 제거' : '이번 턴은 줄 제거 없음'];
+    if (plan.gained) subs.push('능력 ' + plan.gained + '개 획득');
+    var sum = document.createElement('div'); sum.className = 'summary';
+    sum.innerHTML = '<span class="pts">+' + fmt(plan.points) + '점</span><span class="sub">' + subs.join(' · ') + '</span>';
+    box.appendChild(sum);
+
+    var ol = document.createElement('ol'); ol.className = 'step-list';
+    plan.moves.forEach(function (m, i) {
+      var p = S.BY_NAME[m.piece], o = m.orient;
+      var li = document.createElement('li');
+      li.className = 'step' + (state.view === i ? ' active' : '');
+      li.tabIndex = 0;
+      var badge = document.createElement('span'); badge.className = 'badge p-' + p.color; badge.textContent = i + 1;
+      var info = document.createElement('div');
+      var gain = m.cleared.length
+        ? '<span class="gain clear">' + m.cleared.length + '줄 제거 +' + fmt(m.points) + '</span>'
+        : '<span class="gain">+' + fmt(m.points) + '</span>';
+      if (m.gained) gain += ' · <span class="gain">능력 +' + m.gained + '</span>';
+      info.innerHTML = '<div class="step-title">' + m.piece + ' 조각 · ' + gain + '</div>' +
+        '<div class="step-meta">' + howToTurn(o) + ' · <b>' + range(m.y + 1, m.y + o.h) + '행</b>, <b>' + range(m.x + 1, m.x + o.w) + '열</b></div>';
+      li.appendChild(badge); li.appendChild(mini(o.cells, p.color, true)); li.appendChild(info);
+      function pick() { state.view = i; renderBoard(); renderResult(); }
+      li.addEventListener('click', pick);
+      li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      ol.appendChild(li);
+    });
+    box.appendChild(ol);
+
+    var note = document.createElement('p'); note.className = 'hint';
+    note.textContent = '조각을 처음 받은 모양에서 반전 → 회전(시계 방향) 순서로 누르면 그림과 같은 모양이 돼요.';
+    box.appendChild(note);
+    renderTabs();
+  }
+
+  function renderTabs() {
+    var tabs = $('tabs'); tabs.textContent = '';
+    var res = state.result; if (!res || !res.plans.length) return;
+    var plan = res.plans[state.planIdx];
+    plan.moves.forEach(function (m, i) { tabs.appendChild(tab((i + 1) + '번째 · ' + m.piece, i)); });
+    tabs.appendChild(tab('놓은 뒤', plan.moves.length));
+    function tab(label, v) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'tab'; b.textContent = label;
+      b.setAttribute('aria-pressed', state.view === v ? 'true' : 'false');
+      b.addEventListener('click', function () { state.view = v; renderBoard(); renderResult(); });
+      return b;
+    }
+  }
+
+  function solve() {
+    var names = state.slots.filter(Boolean);
+    if (!names.length) return;
+    $('btn-solve').disabled = true;
+    $('btn-solve').textContent = state.mode === 'score' ? '다음 턴까지 계산 중…' : '계산 중…';
+    // 버튼 문구가 먼저 그려지도록 한 박자 쉬고 계산한다
+    setTimeout(function () {
+      state.result = S.solve(state.board, names, { mode: state.mode, icons: state.icons, abilities: state.abilities });
+      state.planIdx = 0; state.view = 0;
+      $('btn-solve').textContent = '추천 받기';
+      renderAll();
+    }, 30);
+  }
+
+  function apply() {
+    var plan = state.result && state.result.plans[state.planIdx]; if (!plan) return;
+    pushUndo(); touched();
+    state.board = plan.finalBoard.slice();
+    state.icons = plan.finalIcons.map(function (p) { return p.slice(); });
+    state.abilities = plan.abilities;
+    state.slots = [null, null, null];
+    clearResult(); save(); renderAll();
+    toast('판에 적용했어요. 새로 받은 조각 3개를 고르고, 새로 생긴 능력 아이콘이 있으면 찍어 주세요.');
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    $('toast').textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { $('toast').textContent = ''; }, 5000);
+  }
+
+  function renderControls() {
+    $('btn-solve').disabled = !state.slots.some(Boolean);
+    $('btn-undo').disabled = !state.undo.length;
+    $('board-chip').hidden = !state.isExample;
+    $('abil-out').textContent = state.abilities + '/' + S.MAX_ABILITIES;
+    $('abil-minus').disabled = state.abilities <= 0;
+    $('abil-plus').disabled = state.abilities >= S.MAX_ABILITIES;
+    $('edit-block').setAttribute('aria-pressed', String(state.editTarget === 'block'));
+    $('edit-icon').setAttribute('aria-pressed', String(state.editTarget === 'icon'));
+    $('mode-score').setAttribute('aria-pressed', String(state.mode === 'score'));
+    $('mode-safe').setAttribute('aria-pressed', String(state.mode === 'safe'));
+    $('mode-hint').textContent = MODE_HINT[state.mode];
+  }
+
+  function renderAll() { renderSlots(); renderBoard(); renderResult(); renderControls(); }
+
+  function setEditTarget(t) {
+    state.editTarget = t;
+    if (state.result) clearResult();
+    renderAll();
+  }
+  function setMode(m) { state.mode = m; clearResult(); save(); renderAll(); }
+  function changeAbilities(d) {
+    state.abilities = Math.max(0, Math.min(S.MAX_ABILITIES, state.abilities + d));
+    touched(); clearResult(); save(); renderAll();
+  }
+
+  $('btn-solve').addEventListener('click', solve);
+  $('btn-apply').addEventListener('click', apply);
+  $('btn-prev').addEventListener('click', function () { state.planIdx--; state.view = 0; renderBoard(); renderResult(); });
+  $('btn-next').addEventListener('click', function () { state.planIdx++; state.view = 0; renderBoard(); renderResult(); });
+  $('edit-block').addEventListener('click', function () { setEditTarget('block'); });
+  $('edit-icon').addEventListener('click', function () { setEditTarget('icon'); });
+  $('mode-score').addEventListener('click', function () { setMode('score'); });
+  $('mode-safe').addEventListener('click', function () { setMode('safe'); });
+  $('abil-minus').addEventListener('click', function () { changeAbilities(-1); });
+  $('abil-plus').addEventListener('click', function () { changeAbilities(1); });
+  $('btn-clear').addEventListener('click', function () {
+    pushUndo(); touched();
+    state.board = new Array(H).fill(0); state.icons = [];
+    clearResult(); save(); renderAll();
+    toast('판과 능력 아이콘을 비웠어요. 되돌리기로 복구할 수 있어요.');
+  });
+  $('btn-undo').addEventListener('click', function () {
+    if (!state.undo.length) return;
+    var s = state.undo.pop();
+    state.board = s.board; state.icons = s.icons; state.abilities = s.abilities;
+    clearResult(); save(); renderAll();
+  });
+
+  load();
+  buildBoard(); buildPalette();
+  renderAll();
+  // 처음 열면 예시 판의 추천을 바로 보여준다
+  if (state.slots.some(Boolean)) solve();
+})();
+</script>
+</body>
+</html>
